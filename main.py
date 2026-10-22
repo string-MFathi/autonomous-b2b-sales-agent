@@ -8,6 +8,8 @@ import email
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
+LOCK_FILE = "agent.lock"
+
 # الاستيرادات الجديدة بعد التعديل الهيكلي
 from sheet_manager import get_valid_leads, update_lead_status_by_email
 # 🚀 استيراد DRY_RUN وقاموس الحقائق المركزي
@@ -183,5 +185,30 @@ def run_outbound_campaign():
             print(f"⚠️ راحة إجبارية {error_sleep} ثانية لتهدئة السيرفر بعد الخطأ...")
             time.sleep(error_sleep)
 
+
+# ==========================================
+# 🔐 نقطة التشغيل الرئيسية مع حماية Lock File
+# ==========================================
 if __name__ == "__main__":
-    run_outbound_campaign()
+    if os.path.exists(LOCK_FILE):
+        print("⚠️ Agent is already running (Lock file exists). Skipping this cycle to prevent overlaps...")
+    else:
+        try:
+            # 1. إنشاء ملف القفل
+            with open(LOCK_FILE, 'w') as f:
+                f.write(str(time.time()))
+            
+            print("🔒 Lock file created successfully.")
+            
+            # 2. تشغيل قلب الإيجنت الأساسي
+            run_outbound_campaign()
+            
+        except Exception as e:
+            print(f"❌ A critical error occurred in main execution: {e}")
+            logging.error(f"CRITICAL MAIN EXECUTION ERROR: {str(e)}")
+            
+        finally:
+            # 3. حذف ملف القفل دائماً لضمان عمل الإيجنت في الجلسة القادمة
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
+                print("🧹 Lock file removed safely. Ready for the next run.")
